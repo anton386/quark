@@ -16,7 +16,7 @@ class Haplotypes(object):
         
         for samy in self.sam:  # iterate through each read
             # is our allele found in this read?
-            start, end = (int(samy.pos), int(samy.pos) + len(samy.seq))
+            start, end = (int(samy.pos), int(samy.pos) + self.calculate_read_length(samy) - 1)
             if (self.win.allele_of_interest >= start and
                 self.win.allele_of_interest <= end):
                 # for every window, check whether the span matches the read
@@ -35,6 +35,16 @@ class Haplotypes(object):
                             self.haplotype[size][tuple(variants)] += 1
                         except KeyError:
                             self.haplotype[size][tuple(variants)] = 1
+
+    def calculate_read_length(self, samy):
+        numeric = map(int, self.regex_cigar_num_base_to_skip.findall(samy.cigar))
+        operator = self.regex_cigar_alpha_operator.findall(samy.cigar)
+
+        length = 0
+        for c, op in zip(numeric, operator):
+            if op == "M":
+                length += c
+        return length
 
     def get_variants_in_haplotype(self, samy, win):
         # samy - a SAM read

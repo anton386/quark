@@ -11,7 +11,7 @@ from soma.ref import Reference
 
 # quark libraries
 from window import Window
-from variants import Variants
+from consensus import ConsensusReference
 from haplotypes import Haplotypes
 
 class Quark(object):
@@ -27,7 +27,7 @@ class Quark(object):
         self.smallest_window = int(smallest_window)
         self.largest_window = int(largest_window)
         self.increment_window = int(increment_window)
-        self.command = command
+        self.command = command.strip()
         
         # once done, execute
         self._start()
@@ -38,13 +38,15 @@ class Quark(object):
                      self.smallest_window,
                      self.largest_window,
                      self.increment_window)  # object contains all coordinates
-        hap = Haplotypes(self.sam, self.ref, win)  # iterate through reads, and then win sizes
+        con = ConsensusReference("/data/chenga/projects/dengue/data/alignment/S15/DenP-S15.sorted.ol.qc.bam", self.ref)
+        hap = Haplotypes(self.sam, con, win)  # iterate through reads, and then win sizes
 
         if self.command == "top_ten":
             self.top_ten(hap, win)
         elif self.command == "top_one":
             self.top_one(self.allele_of_interest, hap, win)
         elif self.command == "rank_ten":
+            pass
             #fix_window = 70
             #self.rank_ten(hap, win, fix_window)
         elif self.command == "distribution":
@@ -70,7 +72,7 @@ class Quark(object):
         #plt.ylim(-0.2, 0.2)
         plt.legend()
         plt.savefig("/data/chenga/haplotype_histogram.png", dpi=200)
-                
+
 
     def top_one(self, allele_of_interest, hap, win):
         for k1, v1 in hap.haplotype.items():
@@ -122,4 +124,4 @@ if __name__ == "__main__":
     else:
         filename, reference, alle_of_intrst, smllst_win, bggst_win, command = sys.argv[1:]
         q = Quark(filename, reference, alle_of_intrst,
-                  smllst_win, bggst_win)
+                  smllst_win, bggst_win, command)
