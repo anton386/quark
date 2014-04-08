@@ -1,4 +1,8 @@
 import sys
+import getopt
+
+# other 3rd party libraries
+import pysam
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -16,29 +20,34 @@ from haplotypes import Haplotypes
 
 class Quark(object):
 
-    def __init__(self, filename, reference, allele_of_interest,
-                 smallest_window, largest_window,
-                 command = "default", increment_window = 10):
-        
-        self.sam = SAM(filename).content()
-        self.ref = Reference(reference)
-        self.filename = filename
-        self.allele_of_interest = int(allele_of_interest)
-        self.smallest_window = int(smallest_window)
-        self.largest_window = int(largest_window)
-        self.increment_window = int(increment_window)
-        self.command = command.strip()
-        
-        # once done, execute
-        self._start()
-        
+    def __init__(self, command, filename=None, reference=None, allele_of_interest=None,
+                 window_range=None, increment_window=None, use_consensus_as_ref=None,
+                 export_to_fasta=None, export_to_vcf=None):
+
+        try:
+            self.command = command
+            self.filename = filename
+            self.sam = pysam.Samfile(self.filename, "rb")
+            self.ref = Reference(reference)
+            self.allele_of_interest = int(allele_of_interest)
+            self.window_range = window_range
+            self.increment_window = int(increment_window)
+            self.use_consensus_as_ref = True
+            self.export_to_fasta = export_to_fasta
+            self.export_to_vcf = export_to_vcf
+
+            # once done, execute
+            self._start()
+            
+        except:
+            self.sam.close()
+
 
     def _start(self):
         win = Window(self.allele_of_interest,
-                     self.smallest_window,
-                     self.largest_window,
+                     self.window_range,
                      self.increment_window)  # object contains all coordinates
-        con = ConsensusReference("/data/chenga/projects/dengue/data/alignment/S15/DenP-S15.sorted.ol.qc.bam", self.ref)
+        con = ConsensusReference(self.filename, self.ref)
         hap = Haplotypes(self.sam, con, win)  # iterate through reads, and then win sizes
 
         if self.command == "top_ten":
@@ -116,12 +125,145 @@ class Quark(object):
                              str(float(v)/float(total_reads)) for k, v in top_10])
             
             
-        
+def usage1():
+    print """
+python quark.py [top_ten|top_one|rank_ten|windows|variant_calling|haplotype_distribution] <options>
+  -b --bam <bam>
+  -r --ref <reference>
+  -w --window <range_of_window>
+  -p --position <pos_of_interest>
+  -i --increment <increment - default:10>
+  -c --use-consensus-as-ref
+  -f --export-consensus-to-fasta
+  -v --export-variants-to-vcf
+  -h --help
+"""
+
+def usage2():
+    print """
+python quary.py windows <options>
+  -b --bam
+  -r --ref
+  -w --window
+  -p --interest
+  -i --increment
+  -c --use-consensus-as-ref
+  -h --help show this help screen
+"""
+
+def usage3():
+    print """
+python quary.py variant_calling <options>
+  -b --bam
+  -r --ref
+  -p --interest
+  -i --increment
+  -c --use-consensus-as-ref
+  -v --export-variants-to-vcf
+  -h --help show this help screen
+"""
+
+def usage_commands():
+    print """
+python quark.py <cmd> <options>
+  list of commands:
+    top_ten
+    top_one
+    rank_ten
+    windows
+    variant_calling
+    haplotype_distribution
+    help
+"""
 
 if __name__ == "__main__":
-    if sys.argv[1] == "-h":
-        print "python quark.py <filename> <reference> <pos_of_interest> <smallest_window> <biggest_window> <command>"
-    else:
-        filename, reference, alle_of_intrst, smllst_win, bggst_win, command = sys.argv[1:]
-        q = Quark(filename, reference, alle_of_intrst,
-                  smllst_win, bggst_win, command)
+
+    cmd = sys.argv[1]
+
+    # defines which cmd requires which parameter
+    if cmd in ("top_ten", "top_one", "rank_ten", "haplotype_distribution"):
+        try:
+            short_options = "b:r:w:p:icfvh"
+            long_options = ["bam", "ref", "window", "increment",
+                            "interest", "help",
+                            "use-consensus-as-ref",
+                            "export-consensus-to-fasta",
+                            "export-variants-to-vcf"]
+            opts, args = getopt.getopt(sys.argv[2:], short_options, long_options) 
+        except getopt.GetoptError as err:
+            print str(err)
+            usage1()
+            sys.exit(99)
+    elif cmd == "windows":
+        try:
+            short_options = "b:r:w:p:ich"
+            long_options = ["bam", "ref", "window", "increment",
+                            "interest", "use-consensus-as-ref",
+                            "help"]
+            opts, args = getopt.getopt(sys.argv[2:], short_options, long_options)
+        except getopt.GetoptError as err:
+            print str(err)
+            usage2()
+            sys.exit(99)
+    elif cmd == "variant_calling":
+        try:
+            short_options = "b:r:p:ichv"
+            long_options = ["bam", "ref", "increment", "interest",
+                            "use-consensus-as-ref",
+                            "export-variants-to-vcf",
+                            "help"]
+            opts, args = getopt.getopt(sys.argv[2:], short_options, long_options)
+        except getopt.GetoptError as err:
+            print str(err)
+            usage3()
+            sys.exit(99)
+    elif (cmd == "help"
+          or cmd == "-h"
+          or cmd == "--help"):
+        usage_commands()
+        sys.exit(99)
+
+    # parse specifications to variables here
+    filename = None
+    reference = None
+    window_range = None
+    increment = 10
+    position = None
+    use_consensus_as_ref = False
+    export_to_fasta = False
+    export_to_vcf = False
+    for o, a in opts:
+        if o in ("-b", "--bam"):
+            filename = a
+        elif o in ("-r", "--ref"):
+            reference = r
+        elif o in ("-w", "--window"):
+            window_range = a
+        elif o in ("-i", "--increment"):
+            increment = int(a)
+        elif o in ("-p", "--position"):
+            position = int(a)
+        elif o in ("-c", "--use-consensus-as-ref"):
+            use_consensus_as_ref = True
+        elif o in ("-f", "--export-consensus-to-fasta"):
+            export_to_fasta = True
+        elif o in ("-v", "--export-variants-to-vcf"):
+            export_to_vcf = True
+        elif o in ("-h", "--help"):
+            if cmd in ("top_ten", "top_one", "rank_ten", "distribution"):
+                usage1()
+                sys.exit(99)
+            elif cmd in ("windows"):
+                usage2()
+                sys.exit(99)
+            elif cmd in ("variant_calling"):
+                usage3()
+                sys.exit(99)
+
+    q = Quark(cmd, filename=filename, reference=reference,
+              allele_of_interest=position,
+              increment_window=increment,
+              window_range=window_range,
+              use_consensus_as_ref=use_consensus_as_ref,
+              export_to_fasta=export_to_fasta,
+              export_to_vcf=export_to_vcf)
