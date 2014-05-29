@@ -9,14 +9,19 @@ class Haplotypes(object):
         self.win = window_obj
         self.regex_cigar_num_base_to_skip = re.compile("[0-9]+")
         self.regex_cigar_alpha_operator = re.compile("[A-Z]")
+        self.region_start = (self.win.allele_of_interest-1000) if (self.win.allele_of_interest-1000) > 0 else 0
+        self.region_end = (self.win.allele_of_interest+1000) if (self.win.allele_of_interest+1000) > len(self.ref.sequence) else None
         self.get_haplotype_for_each_window()
+        
 
     def get_haplotype_for_each_window(self):
         self.haplotype = collections.OrderedDict()
         
-        for samy in self.sam:  # iterate through each read
+        for samy in self.sam.fetch(self.ref.id.split()[0],
+                                   start=self.region_start,
+                                   end=self.region_end):  # iterate through each read
             # is our allele found in this read?
-            start, end = (int(samy.pos), int(samy.pos) + self.calculate_read_length(samy) - 1)
+            start, end = (int(samy.pos+1), int(samy.pos+1) + self.calculate_read_length(samy) - 1)
             if (self.win.allele_of_interest >= start and
                 self.win.allele_of_interest <= end):
                 # for every window, check whether the span matches the read
@@ -37,8 +42,8 @@ class Haplotypes(object):
                             self.haplotype[size][tuple(variants)] = 1
 
     def calculate_read_length(self, samy):
-        numeric = map(int, self.regex_cigar_num_base_to_skip.findall(samy.cigar))
-        operator = self.regex_cigar_alpha_operator.findall(samy.cigar)
+        numeric = map(int, self.regex_cigar_num_base_to_skip.findall(samy.cigarstring))
+        operator = self.regex_cigar_alpha_operator.findall(samy.cigarstring)
 
         length = 0
         for c, op in zip(numeric, operator):
@@ -47,7 +52,7 @@ class Haplotypes(object):
         return length
 
     def get_variants_in_haplotype(self, samy, win):
-        # samy - a SAM read
+        # samy - a pysam.AlignedRead read
         # win  - tuple of (start, end)
 
         # ignore soft clips
@@ -55,14 +60,14 @@ class Haplotypes(object):
         # then, let's get the deletion from cigar
         # now, let's get the substitutions
         variants = []
-        numeric = map(int, self.regex_cigar_num_base_to_skip.findall(samy.cigar))
-        operator = self.regex_cigar_alpha_operator.findall(samy.cigar)
+        numeric = map(int, self.regex_cigar_num_base_to_skip.findall(samy.cigarstring))
+        operator = self.regex_cigar_alpha_operator.findall(samy.cigarstring)
 
         start = 0
         ref_start = 0
         for c, op in zip(numeric, operator):
             if op == "I":
-                position = int(samy.pos) + ref_start
+                position = int(samy.pos+1) + ref_start
                 if (position >= win[0] and
                     position <= win[1]):
                     variants.append((position,
@@ -70,7 +75,7 @@ class Haplotypes(object):
                                      samy.seq[start:start+c]))
                 start += c
             elif op == "D":
-                position = int(samy.pos) + ref_start
+                position = int(samy.pos+1) + ref_start
                 if (position >= win[0] and
                     position <= win[1]):
                     variants.append((position,
@@ -83,14 +88,14 @@ class Haplotypes(object):
                 #print c
                 #print start
                 #print ref_start
-                #print int(samy.pos)+ref_start-1
-                #print int(samy.pos)+ref_start-1+c
-                #print self.ref.sequence[int(samy.pos)+ref_start-1:int(samy.pos)+ref_start-1+c]
+                #print int(samy.pos+1)+ref_start-1
+                #print int(samy.pos+1)+ref_start-1+c
+                #print self.ref.sequence[int(samy.pos+1)+ref_start-1:int(samy.pos+1)+ref_start-1+c]
                 #print samy.seq[start:start+c]
-                for n, (r, s) in enumerate(zip(self.ref.sequence[int(samy.pos)+ref_start-1:int(samy.pos)+ref_start-1+c],
+                for n, (r, s) in enumerate(zip(self.ref.sequence[int(samy.pos+1)+ref_start-1:int(samy.pos+1)+ref_start-1+c],
                                                samy.seq[start:start+c])):
                     if r != s:
-                        position = int(samy.pos) + ref_start + n
+                        position = int(samy.pos+1) + ref_start + n
                         if (position >= win[0] and
                             position <= win[1]):
                             variants.append((position,
